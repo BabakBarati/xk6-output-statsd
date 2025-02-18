@@ -37,6 +37,7 @@ The `xk6-output-statsd` extension supports the following configuration options:
 | K6_STATSD_BUFFER_SIZE | `20`            | The buffer size.                                                                      |
 | K6_STATSD_ENABLE_TAGS | `false`         | If `true` enables sending tags. Versions prior to statsd v0.9.0 did not support tags. |
 | K6_STATSD_TAG_BLOCKLIST | `vu,iter,url`   | Comma-separated list of tags that should not be sent to statsd.                       |
+| K6_STATSD_METRIC_BLOCKLIST | `data_sent,data_received`   | Comma-separated list of metrics that should not be sent to statsd.                       |
 
 Options may be specified as system environment variables as with the following:
 
