@@ -13,12 +13,13 @@ import (
 
 // config defines the StatsD configuration.
 type config struct {
-	Addr         null.String         `json:"addr,omitempty" envconfig:"K6_STATSD_ADDR"`
-	BufferSize   null.Int            `json:"bufferSize,omitempty" envconfig:"K6_STATSD_BUFFER_SIZE"`
-	Namespace    null.String         `json:"namespace,omitempty" envconfig:"K6_STATSD_NAMESPACE"`
-	PushInterval types.NullDuration  `json:"pushInterval,omitempty" envconfig:"K6_STATSD_PUSH_INTERVAL"`
-	TagBlocklist metrics.EnabledTags `json:"tagBlocklist,omitempty" envconfig:"K6_STATSD_TAG_BLOCKLIST"`
-	EnableTags   null.Bool           `json:"enableTags,omitempty" envconfig:"K6_STATSD_ENABLE_TAGS"`
+	Addr            null.String         `json:"addr,omitempty" envconfig:"K6_STATSD_ADDR"`
+	BufferSize      null.Int            `json:"bufferSize,omitempty" envconfig:"K6_STATSD_BUFFER_SIZE"`
+	Namespace       null.String         `json:"namespace,omitempty" envconfig:"K6_STATSD_NAMESPACE"`
+	PushInterval    types.NullDuration  `json:"pushInterval,omitempty" envconfig:"K6_STATSD_PUSH_INTERVAL"`
+	TagBlocklist    metrics.EnabledTags `json:"tagBlocklist,omitempty" envconfig:"K6_STATSD_TAG_BLOCKLIST"`
+	MetricBlocklist metrics.EnabledTags `json:"metricBlocklist,omitempty" envconfig:"K6_STATSD_METRIC_BLOCKLIST"`
+	EnableTags      null.Bool           `json:"enableTags,omitempty" envconfig:"K6_STATSD_ENABLE_TAGS"`
 }
 
 func processTags(t metrics.EnabledTags, tags map[string]string) []string {
@@ -29,6 +30,18 @@ func processTags(t metrics.EnabledTags, tags map[string]string) []string {
 		}
 	}
 	return res
+}
+
+func filterMetrics(blokedMetricsByName metrics.EnabledTags, allSamples []metrics.Sample) []metrics.Sample {
+	var filtered []metrics.Sample
+	for _, s := range allSamples {
+		isBlocked, hasBlockedMetric := blokedMetricsByName[s.Metric.Name]
+		if !hasBlockedMetric && !isBlocked {
+			filtered = append(filtered, s)
+		}
+	}
+	return filtered
+
 }
 
 // Apply saves config non-zero config values from the passed config in the receiver.
@@ -48,6 +61,9 @@ func (c config) Apply(cfg config) config {
 	if cfg.TagBlocklist != nil {
 		c.TagBlocklist = cfg.TagBlocklist
 	}
+	if cfg.MetricBlocklist != nil {
+		c.MetricBlocklist = cfg.MetricBlocklist
+	}
 	if cfg.EnableTags.Valid {
 		c.EnableTags = cfg.EnableTags
 	}
@@ -58,12 +74,13 @@ func (c config) Apply(cfg config) config {
 // newConfig creates a new Config instance with default values for some fields.
 func newConfig() config {
 	return config{
-		Addr:         null.NewString("localhost:8125", false),
-		BufferSize:   null.NewInt(20, false),
-		Namespace:    null.NewString("k6.", false),
-		PushInterval: types.NewNullDuration(1*time.Second, false),
-		TagBlocklist: metrics.SystemTagSet(metrics.TagVU | metrics.TagIter | metrics.TagURL).Map(),
-		EnableTags:   null.NewBool(false, false),
+		Addr:            null.NewString("localhost:8125", false),
+		BufferSize:      null.NewInt(20, false),
+		Namespace:       null.NewString("k6.", false),
+		PushInterval:    types.NewNullDuration(1*time.Second, false),
+		TagBlocklist:    metrics.SystemTagSet(metrics.TagVU | metrics.TagIter | metrics.TagURL).Map(),
+		MetricBlocklist: defaultBlockMetrics([]string{metrics.DataReceivedName, metrics.DataSentName}),
+		EnableTags:      null.NewBool(false, false),
 	}
 }
 
@@ -90,4 +107,12 @@ func getConsolidatedConfig(jsonRawConf json.RawMessage, env map[string]string, _
 	result = result.Apply(envConfig)
 
 	return result, nil
+}
+
+func defaultBlockMetrics(metricList []string) map[string]bool {
+	m := make(map[string]bool)
+	for _, metricName := range metricList {
+		m[metricName] = true
+	}
+	return m
 }

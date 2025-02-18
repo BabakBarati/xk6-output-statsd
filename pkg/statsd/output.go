@@ -135,7 +135,7 @@ func (o *Output) flushMetrics() {
 	var count int
 	var errorCount int
 	for _, sc := range samples {
-		samples := sc.GetSamples()
+		samples := filterMetrics(o.config.MetricBlocklist, sc.GetSamples())
 		count += len(samples)
 		o.logger.
 			WithField("samples", len(samples)).
